@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestor de Tareas</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #f4f4f9;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+    tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+    tr:hover {
+      background-color: #f1f1f1;
+    }
+    .form-container {
+      margin-bottom: 20px;
+    }
+    input[type="text"], input[type="date"], input[type="number"] {
+      padding: 5px;
+      margin-right: 10px;
+    }
+    button {
+      padding: 5px 10px;
+      background-color: #28a745;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #218838;
+    }
+    .edit-btn, .delete-btn {
+      padding: 3px 8px;
+      margin-right: 5px;
+      cursor: pointer;
+    }
+    .edit-btn {
+      background-color: #ffc107;
+      color: black;
+      border: none;
+    }
+    .delete-btn {
+      background-color: #dc3545;
+      color: white;
+      border: none;
+    }
+    .progress {
+      font-weight: bold;
+      margin-top: 20px;
+      text-align: center;
+    }
+    .completed {
+      background-color: #d4edda;
+    }
+  </style>
+</head>
+<body>
+  <h1>Gestor de Tareas Anual</h1>
+  <div class="form-container">
+    <input type="text" id="taskName" placeholder="Nombre de la tarea" required>
+    <input type="date" id="targetDate" required>
+    <input type="number" id="progress" placeholder="Avance (%)" min="0" max="100" required>
+    <button onclick="addOrUpdateTask()">Agregar Tarea</button>
+  </div>
+  <table id="taskTable">
+    <thead>
+      <tr>
+        <th>Completada</th>
+        <th>Tarea</th>
+        <th>Fecha Captura</th>
+        <th>Fecha Objetivo</th>
+        <th>Estado (%)</th>
+        <th>Días Restantes</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+    </tbody>
+  </table>
+  <div class="progress" id="totalProgress">Porcentaje de Logro Total: 0%</div>
+
+  <script>
+    const tasks = [
+      { id: 1, name: "Proyecto A", captureDate: "2023-10-01", targetDate: "2023-12-31", progress: 50, completed: false },
+      { id: 2, name: "Proyecto B", captureDate: "2023-10-05", targetDate: "2023-11-15", progress: 100, completed: true },
+      { id: 3, name: "Proyecto C", captureDate: "2023-10-10", targetDate: "2024-01-15", progress: 0, completed: false }
+    ];
+    let editingTaskId = null;
+
+    function addOrUpdateTask() {
+      const taskName = document.getElementById('taskName').value.trim();
+      const targetDate = document.getElementById('targetDate').value;
+      const progress = parseInt(document.getElementById('progress').value);
+
+      if (!taskName || !targetDate || isNaN(progress)) {
+        alert('Por favor, completa todos los campos.');
+        return;
+      }
+
+      const captureDate = editingTaskId !== null ? tasks.find(task => task.id === editingTaskId).captureDate : getCurrentDate();
+
+      if (editingTaskId !== null) {
+        // Actualizar tarea existente
+        const taskToUpdate = tasks.find(task => task.id === editingTaskId);
+        taskToUpdate.name = taskName;
+        taskToUpdate.targetDate = targetDate;
+        taskToUpdate.progress = progress;
+        editingTaskId = null;
+        document.querySelector('button[onclick="addOrUpdateTask()"]').textContent = 'Agregar Tarea';
+      } else {
+        // Agregar nueva tarea
+        const newTask = {
+          id: Date.now(), // Genera un ID único basado en la marca de tiempo
+          name: taskName,
+          captureDate: captureDate,
+          targetDate: targetDate,
+          progress: progress,
+          completed: false
+        };
+        tasks.push(newTask);
+      }
+
+      renderTasks();
+      calculateTotalProgress();
+      clearForm();
+    }
+
+    function toggleCompleted(taskId) {
+      const task = tasks.find(task => task.id === taskId);
+      task.completed = !task.completed;
+      renderTasks();
+    }
+
+    function editTask(taskId) {
+      const task = tasks.find(task => task.id === taskId);
+      document.getElementById('taskName').value = task.name;
+      document.getElementById('targetDate').value = task.targetDate;
+      document.getElementById('progress').value = task.progress;
+
+      editingTaskId = taskId;
+      document.querySelector('button[onclick="addOrUpdateTask()"]').textContent = 'Actualizar Tarea';
+    }
+
+    function deleteTask(taskId) {
+      const taskIndex = tasks.findIndex(task => task.id === taskId);
+      tasks.splice(taskIndex, 1);
+      renderTasks();
+      calculateTotalProgress();
+    }
+
+    function renderTasks() {
+      const tbody = document.querySelector('#taskTable tbody');
+      tbody.innerHTML = '';
+
+      // Separar tareas completadas de las no completadas
+      const incompleteTasks = tasks.filter(task => !task.completed);
+      const completedTasks = tasks.filter(task => task.completed);
+
+      // Ordenar tareas incompletas por fecha objetivo
+      incompleteTasks.sort((a, b) => new Date(a.targetDate) - new Date(b.targetDate));
+
+      // Combinar tareas incompletas y completadas
+      const sortedTasks = [...incompleteTasks, ...completedTasks];
+
+      sortedTasks.forEach(task => {
+        const row = document.createElement('tr');
+
+        if (task.completed) {
+          row.classList.add('completed');
+        }
+
+        const daysRemaining = Math.ceil((new Date(task.targetDate) - new Date()) / (1000 * 60 * 60 * 24));
+        const daysCell = daysRemaining < 0 ? 'Vencida' : `${daysRemaining} días`;
+
+        row.innerHTML = `
+          <td><input type="checkbox" ${task.completed ? 'checked' : ''} onchange="toggleCompleted(${task.id})"></td>
+          <td>${task.name}</td>
+          <td>${task.captureDate}</td>
+          <td>${task.targetDate}</td>
+          <td>${task.progress}%</td>
+          <td>${daysCell}</td>
+          <td>
+            <button class="edit-btn" onclick="editTask(${task.id})">Editar</button>
+            <button class="delete-btn" onclick="deleteTask(${task.id})">Eliminar</button>
+          </td>
+        `;
+
+        tbody.appendChild(row);
+      });
+    }
+
+    function calculateTotalProgress() {
+      if (tasks.length === 0) {
+        document.getElementById('totalProgress').textContent = 'Porcentaje de Logro Total: 0%';
+        return;
+      }
+
+      const totalProgress = tasks.reduce((sum, task) => sum + task.progress, 0) / tasks.length;
+      document.getElementById('totalProgress').textContent = `Porcentaje de Logro Total: ${totalProgress.toFixed(2)}%`;
+    }
+
+    function clearForm() {
+      document.getElementById('taskName').value = '';
+      document.getElementById('targetDate').value = '';
+      document.getElementById('progress').value = '';
+    }
+
+    function getCurrentDate() {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    // Renderizar tareas al cargar la página
+    renderTasks();
+    calculateTotalProgress();
+  </script>
+</body>
+</html>
